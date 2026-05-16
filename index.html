@@ -410,7 +410,7 @@ body.copy-mode td:not(.awb-empty):hover{background:rgba(245,158,11,.1);color:var
   <div class="modal">
     <div class="modal-title">🔐 Modalità Admin</div>
     <div class="modal-sub">Inserisci la password per abilitare la modifica delle celle</div>
-    <input class="modal-input" id="adminPwInput" type="password" placeholder="Password..." autocomplete="new-password" onkeydown="if(event.key==='Enter')confirmAdmin()">
+    <div id="adminPwSlot"></div>
     <div class="modal-err" id="adminErr">Password errata. Riprova.</div>
     <div class="modal-btns">
       <button class="modal-btn cancel" onclick="closeAdminModal()">Annulla</button>
@@ -635,14 +635,30 @@ var adminMode=false;
 
 function toggleAdmin(){
   if(adminMode){ disableAdmin(); return; }
+  // Crea il campo password dinamicamente — impedisce l'autofill del browser
+  var slot=document.getElementById('adminPwSlot');
+  slot.innerHTML='';
+  var inp=document.createElement('input');
+  inp.className='modal-input';
+  inp.id='adminPwInput';
+  inp.type='password';
+  inp.placeholder='Password...';
+  inp.autocomplete='off';
+  inp.setAttribute('autocomplete','off');
+  inp.addEventListener('keydown',function(e){ if(e.key==='Enter') confirmAdmin(); });
+  slot.appendChild(inp);
   document.getElementById('adminModal').classList.remove('hide');
-  document.getElementById('adminPwInput').value='';
   document.getElementById('adminErr').classList.remove('show');
-  setTimeout(function(){ document.getElementById('adminPwInput').focus(); },100);
+  setTimeout(function(){ inp.focus(); },120);
 }
-function closeAdminModal(){ document.getElementById('adminModal').classList.add('hide'); }
+function closeAdminModal(){
+  document.getElementById('adminModal').classList.add('hide');
+  // Distrugge il campo password — nessun campo password nel DOM a modal chiuso
+  document.getElementById('adminPwSlot').innerHTML='';
+}
 function confirmAdmin(){
-  var pw=document.getElementById('adminPwInput').value;
+  var inp=document.getElementById('adminPwInput');
+  var pw=inp?inp.value:'';
   if(pw===ADMIN_PASS){
     adminMode=true; closeAdminModal();
     document.getElementById('btnAdmin').classList.add('on');
@@ -651,8 +667,7 @@ function confirmAdmin(){
     if(currentData) renderAll(currentData);
   } else {
     document.getElementById('adminErr').classList.add('show');
-    document.getElementById('adminPwInput').value='';
-    document.getElementById('adminPwInput').focus();
+    if(inp){ inp.value=''; inp.focus(); }
   }
 }
 function disableAdmin(){
