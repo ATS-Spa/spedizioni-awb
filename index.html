@@ -347,7 +347,8 @@ body.copy-mode td:not(.awb-empty):hover{background:rgba(245,158,11,.1);color:var
     <div class="fg">
   <div class="fl">AWB</div>
   <div class="fc-free-wrap">
-    <input id="fAwb" class="fc-free" type="text" list="listFiltroAwb" placeholder="Digita o scegli…" autocomplete="off"
+    <input id="fAwb" class="fc-free" type="text" list="listFiltroAwb" placeholder="Digita o scegli…" autocomplete="new-password" readonly
+           onfocus="this.removeAttribute('readonly')"
            oninput="currentData&&scheduleFilter()" onchange="currentData&&loadData()">
     <button class="btn-clear-field" onclick="clearField('fAwb')" tabindex="-1" title="Pulisci">✕</button>
   </div>
@@ -360,7 +361,8 @@ body.copy-mode td:not(.awb-empty):hover{background:rgba(245,158,11,.1);color:var
     <div class="fg">
   <div class="fl">Numero ODP</div>
   <div class="fc-free-wrap">
-    <input id="fOdp" class="fc-free" type="text" list="listFiltroOdp" placeholder="Digita o scegli…" autocomplete="off"
+    <input id="fOdp" class="fc-free" type="text" list="listFiltroOdp" placeholder="Digita o scegli…" autocomplete="new-password" readonly
+           onfocus="this.removeAttribute('readonly')"
            oninput="currentData&&scheduleFilter()" onchange="currentData&&loadData()">
     <button class="btn-clear-field" onclick="clearField('fOdp')" tabindex="-1" title="Pulisci">✕</button>
   </div>
@@ -408,7 +410,7 @@ body.copy-mode td:not(.awb-empty):hover{background:rgba(245,158,11,.1);color:var
   <div class="modal">
     <div class="modal-title">🔐 Modalità Admin</div>
     <div class="modal-sub">Inserisci la password per abilitare la modifica delle celle</div>
-    <input class="modal-input" id="adminPwInput" type="password" placeholder="Password..." onkeydown="if(event.key==='Enter')confirmAdmin()">
+    <input class="modal-input" id="adminPwInput" type="password" placeholder="Password..." autocomplete="new-password" onkeydown="if(event.key==='Enter')confirmAdmin()">
     <div class="modal-err" id="adminErr">Password errata. Riprova.</div>
     <div class="modal-btns">
       <button class="modal-btn cancel" onclick="closeAdminModal()">Annulla</button>
@@ -826,18 +828,24 @@ function addRowInBlob(blob, sheetName, insertAfterFileRowIdx, newRow){
 
 // ── CONFERMA MODAL ────────────────────────────
 var confirmCallback=null;
-function showConfirm(title,msg,cb,okLabel,okStyle){
+function showConfirm(title,msg,cb,okLabel,okStyle,blockOnly){
   document.getElementById('confirmTitle').textContent=title;
   document.getElementById('confirmMsg').innerHTML=msg;
   confirmCallback=cb;
   var btn=document.getElementById('confirmOkBtn');
-  btn.textContent=okLabel||'Elimina';
-  btn.style.background=okStyle==='blue'?'var(--blue)':'var(--red)';
+  if(blockOnly){
+    btn.style.display='none';
+  } else {
+    btn.style.display='';
+    btn.textContent=okLabel||'Elimina';
+    btn.style.background=okStyle==='blue'?'var(--blue)':'var(--red)';
+  }
   document.getElementById('confirmModal').classList.remove('hide');
 }
 function closeConfirm(){
   document.getElementById('confirmModal').classList.add('hide');
   confirmCallback=null;
+  document.getElementById('confirmOkBtn').style.display='';
 }
 document.getElementById('confirmOkBtn').addEventListener('click',function(){
   var cb=confirmCallback; closeConfirm(); if(cb) cb();
@@ -1559,6 +1567,43 @@ function applyAwb(){
     return String(r[3]||'').trim().toLowerCase()===awbLower;
   });
 
+  // Destino corrente (dalle righe filtrate)
+  var currentDestinoMap={};
+  intRows.forEach(function(r){ var d=String(r[8]||'').trim(); if(d) currentDestinoMap[d]=true; });
+  var currentDestinoKeys=Object.keys(currentDestinoMap);
+  var currentDestino=currentDestinoKeys[0]||'';
+
+  // Separa: stesso destino vs destino diverso
+  var conflictOther=already.filter(function(r){
+    var dest=String(r[8]||'').trim();
+    return dest!==currentDestino;
+  });
+  var conflictSame=already.filter(function(r){
+    var dest=String(r[8]||'').trim();
+    return dest===currentDestino;
+  });
+
+  // BLOCCO: AWB già usato per un Destino DIVERSO
+  if(conflictOther.length){
+    var altreDest=conflictOther.map(function(r){
+      var dn=norm(r[0]);
+      var dest=String(r[8]||'').trim()||'—';
+      var tipo=String(r[6]||'').trim()||'—';
+      var plant=String(r[5]||'').trim()||'—';
+      var data=String(r[4]||'').trim();
+      if(/^\d{8}$/.test(data)) data=data.substr(6,2)+'/'+data.substr(4,2)+'/'+data.substr(0,4);
+      return '<strong>'+esc(dn)+'</strong> → Dest: <span style="color:var(--red)">'+esc(dest)+'</span> ('+esc(plant)+' · '+esc(tipo)+' · '+esc(data)+')';
+    }).join('<br>');
+    showConfirm(
+      '🚫 AWB bloccato — Destino diverso',
+      'AWB <strong style="color:var(--amber)">'+esc(awb)+'</strong> è già assegnato a un destino diverso da <strong style="color:var(--green)">'+esc(currentDestino||'—')+'</strong>:<br><br>'+
+      altreDest+'<br><br>'+
+      '<span style="color:var(--red);font-size:12px">⛔ Non è possibile riutilizzare lo stesso AWB per destinazioni diverse.</span>',
+      null, null, null, true  // solo pulsante Annulla
+    );
+    return;
+  }
+
   function proceedWithCheck(){
     var destinoMap={};
     intRows.forEach(function(r){ var d=String(r[8]||'').trim(); destinoMap[d]=true; });
@@ -1615,19 +1660,20 @@ function applyAwb(){
     }
   }
 
-  if(already.length){
-    var esistenti=already.map(function(r){
+  if(conflictSame.length){
+    var esistenti=conflictSame.map(function(r){
       var dn=norm(r[0]);
       var dest=String(r[8]||'').trim()||'—';
-var tipo=String(r[6]||'').trim()||'—';
-var plant=String(r[5]||'').trim()||'—';
-var data=String(r[4]||'').trim();
-if(/^\d{8}$/.test(data)) data=data.substr(6,2)+'/'+data.substr(4,2)+'/'+data.substr(0,4);
-return '<strong>'+esc(dn)+'</strong> ('+esc(plant)+' · '+esc(dest)+' · '+esc(tipo)+' · '+esc(data)+')';
+      var tipo=String(r[6]||'').trim()||'—';
+      var plant=String(r[5]||'').trim()||'—';
+      var data=String(r[4]||'').trim();
+      if(/^\d{8}$/.test(data)) data=data.substr(6,2)+'/'+data.substr(4,2)+'/'+data.substr(0,4);
+      return '<strong>'+esc(dn)+'</strong> ('+esc(plant)+' · '+esc(dest)+' · '+esc(tipo)+' · '+esc(data)+')';
     }).join('<br>');
     showConfirm(
-      '⚠ AWB già utilizzato',
-      'AWB <strong style="color:var(--amber)">'+esc(awb)+'</strong> è già presente in:<br><br>'+esistenti+'<br><br>Vuoi applicarlo ugualmente?',
+      '⚠ AWB già utilizzato (stesso Destino)',
+      'AWB <strong style="color:var(--amber)">'+esc(awb)+'</strong> è già presente nelle righe:<br><br>'+esistenti+
+      '<br><br><span style="color:var(--subtle);font-size:12px">Il Destino è lo stesso ('+esc(currentDestino)+') — applicare comunque?</span>',
       proceedWithCheck, 'Applica comunque', 'blue'
     );
     return;
