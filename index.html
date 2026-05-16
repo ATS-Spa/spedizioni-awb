@@ -635,18 +635,28 @@ var adminMode=false;
 
 function toggleAdmin(){
   if(adminMode){ disableAdmin(); return; }
-  // Crea il campo password dinamicamente — impedisce l'autofill del browser
   var slot=document.getElementById('adminPwSlot');
   slot.innerHTML='';
+  // Wrap in a form con autocomplete=off — impedisce il "Salvare la password?"
+  var frm=document.createElement('form');
+  frm.autocomplete='off';
+  frm.onsubmit=function(e){ e.preventDefault(); confirmAdmin(); return false; };
+  // Campo honeypot username nascosto (Chrome cerca sempre la coppia user+pass)
+  var fake=document.createElement('input');
+  fake.type='text'; fake.name='prevent_autofill_'+Date.now();
+  fake.style.cssText='display:none;position:absolute;left:-9999px';
+  fake.tabIndex=-1; fake.setAttribute('aria-hidden','true');
+  frm.appendChild(fake);
+  // Campo password reale
   var inp=document.createElement('input');
   inp.className='modal-input';
   inp.id='adminPwInput';
   inp.type='password';
+  inp.name='prevent_autofill_pw_'+Date.now(); // nome casuale → Chrome non lo associa a nessun sito
   inp.placeholder='Password...';
-  inp.autocomplete='off';
   inp.setAttribute('autocomplete','off');
-  inp.addEventListener('keydown',function(e){ if(e.key==='Enter') confirmAdmin(); });
-  slot.appendChild(inp);
+  frm.appendChild(inp);
+  slot.appendChild(frm);
   document.getElementById('adminModal').classList.remove('hide');
   document.getElementById('adminErr').classList.remove('show');
   setTimeout(function(){ inp.focus(); },120);
