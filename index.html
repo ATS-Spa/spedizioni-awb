@@ -659,7 +659,6 @@ function toggleAdmin(){
   inp.setAttribute('autocomplete','current-password');
   frm.appendChild(inp);
 
-  // Submit button nascosto — Chrome lo vede e abilita il salvataggio password
   var submitBtn=document.createElement('button');
   submitBtn.type='submit';
   submitBtn.style.cssText='position:absolute;opacity:0;pointer-events:none;width:1px;height:1px;';
@@ -676,6 +675,18 @@ function toggleAdmin(){
   document.getElementById('adminErr').classList.remove('show');
   setTimeout(function(){ inp.focus(); },120);
 }
+
+function saveAdminCredential(pw){
+  if(!window.PasswordCredential) return;
+  try {
+    var cred=new PasswordCredential({
+      id:'admin',
+      password:pw,
+      name:'Admin — Spedizioni WMS'
+    });
+    navigator.credentials.store(cred);
+  } catch(e){}
+}
 function closeAdminModal(){
   document.getElementById('adminModal').classList.add('hide');
   // Distrugge il campo password — nessun campo password nel DOM a modal chiuso
@@ -686,14 +697,7 @@ function confirmAdmin(){
   var pw=inp?inp.value:'';
   if(pw===ADMIN_PASS){
     adminMode=true;
-    // Submittia il form — Chrome intercetta il submit reale e propone di salvare la password
-    var frm=document.getElementById('adminPwForm');
-    if(frm){
-      // Rimuovi il listener per evitare loop, poi fai submit nativo
-      var clone=frm.cloneNode(true);
-      frm.parentNode.replaceChild(clone,frm);
-      clone.submit(); // submit nativo senza preventDefault → Chrome vede il login
-    }
+    saveAdminCredential(pw);  // chiede a Chrome di salvare via Credential Management API
     closeAdminModal();
     document.getElementById('btnAdmin').classList.add('on');
     document.body.classList.add('admin-mode');
