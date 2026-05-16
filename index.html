@@ -638,16 +638,18 @@ function toggleAdmin(){
   var slot=document.getElementById('adminPwSlot');
   slot.innerHTML='';
   var frm=document.createElement('form');
+  frm.method='post';
+  frm.action='#';
   frm.autocomplete='on';
-  frm.onsubmit=function(e){ e.preventDefault(); confirmAdmin(); return false; };
-  // Username nascosto fisso — serve a Chrome per associare correttamente la password
+  frm.id='adminPwForm';
+
   var uname=document.createElement('input');
   uname.type='text'; uname.name='username';
   uname.value='admin'; uname.autocomplete='username';
-  uname.style.cssText='display:none;position:absolute;left:-9999px';
-  uname.tabIndex=-1; uname.setAttribute('aria-hidden','true');
+  uname.style.cssText='position:absolute;opacity:0;pointer-events:none;width:1px;height:1px;';
+  uname.tabIndex=-1;
   frm.appendChild(uname);
-  // Campo password con autocomplete standard — Chrome lo riconosce e gestisce
+
   var inp=document.createElement('input');
   inp.className='modal-input';
   inp.id='adminPwInput';
@@ -656,6 +658,19 @@ function toggleAdmin(){
   inp.placeholder='Password...';
   inp.setAttribute('autocomplete','current-password');
   frm.appendChild(inp);
+
+  // Submit button nascosto — Chrome lo vede e abilita il salvataggio password
+  var submitBtn=document.createElement('button');
+  submitBtn.type='submit';
+  submitBtn.style.cssText='position:absolute;opacity:0;pointer-events:none;width:1px;height:1px;';
+  submitBtn.tabIndex=-1;
+  frm.appendChild(submitBtn);
+
+  frm.addEventListener('submit', function(e){
+    e.preventDefault();
+    confirmAdmin();
+  });
+
   slot.appendChild(frm);
   document.getElementById('adminModal').classList.remove('hide');
   document.getElementById('adminErr').classList.remove('show');
@@ -670,7 +685,16 @@ function confirmAdmin(){
   var inp=document.getElementById('adminPwInput');
   var pw=inp?inp.value:'';
   if(pw===ADMIN_PASS){
-    adminMode=true; closeAdminModal();
+    adminMode=true;
+    // Submittia il form — Chrome intercetta il submit reale e propone di salvare la password
+    var frm=document.getElementById('adminPwForm');
+    if(frm){
+      // Rimuovi il listener per evitare loop, poi fai submit nativo
+      var clone=frm.cloneNode(true);
+      frm.parentNode.replaceChild(clone,frm);
+      clone.submit(); // submit nativo senza preventDefault → Chrome vede il login
+    }
+    closeAdminModal();
     document.getElementById('btnAdmin').classList.add('on');
     document.body.classList.add('admin-mode');
     showToast('🔓 Modalità Admin attiva');
